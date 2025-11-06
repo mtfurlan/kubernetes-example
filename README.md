@@ -16,6 +16,9 @@ docker build -t example-docker-image .
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 
-curl "$(minikube service my-example-service --url)"
-```
+minikube tunnel --cleanup
 
+kubectl get svc
+
+http://$external_IP
+```
