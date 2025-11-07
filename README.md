@@ -9,8 +9,7 @@ helm install kong --namespace kong --create-namespace --repo https://charts.kong
 docker build -t example-docker-image .
 
 # copy into k3s
-docker save example-docker-image > img.tar
-k3s ctr images import img.tar
+docker save example-docker-image:latest | ssh $host k3s ctr images import -
 
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
