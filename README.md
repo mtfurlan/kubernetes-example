@@ -11,7 +11,7 @@ kubectl create namespace app-prod
 docker build -t example-docker-image .
 
 # copy into k3s
-docker save example-docker-image:latest | ssh $host k3s ctr images import -
+version=v3; docker build -t example-docker-image:$version . && docker save example-docker-image:$version | ssh 10.42.0.122 k3s ctr images import -
 
 # apply the configs
 kubectl apply -f "*.yaml"
@@ -33,6 +33,3 @@ get all dns records:
 nameserver=$(kubectl -n kube-system get svc kube-dns -o json | jq -r '.spec.clusterIP')
 kubectl get -A svc -o json | jq -r '.items[] | .spec.clusterIP | select(. != "None")' | xargs -I{} nslookup "{}" "$nameserver"
 ```
-
-TODO:
-* ingress load balancer -> ingress controller -> service

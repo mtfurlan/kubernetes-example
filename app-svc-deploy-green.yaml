@@ -14,17 +14,28 @@ spec:
         app: app-green
       annotations:
         deployment_slot: green
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9797"
     spec:
       containers:
         - name: app-green
           imagePullPolicy: IfNotPresent
-          image: example-docker-image:v2
+          image: example-docker-image:v3
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: http-metrics
+              containerPort: 9797
+              protocol: TCP
           volumeMounts:
             - name: podinfo
               mountPath: /etc/podinfo
           env:
+            - name: PORT
+              value: "3000"
+            - name: METRICS_PORT
+              value: "9797"
             - name: NODE_NAME
               valueFrom:
                 fieldRef:

@@ -4,13 +4,34 @@ FROM node:25
 EXPOSE 3000
 WORKDIR /app
 RUN npm i express
+RUN npm i prom-client express-prom-bundle
 
 RUN cat <<EOF >> /app/server.js
 const fs = require('node:fs');
 const express = require('express')
+const promBundle = require("express-prom-bundle");
+
+const port = process.env.PORT | 3000;
+const metricsPort = process.env.METRICS_PORT | 9797;
 
 const app = express()
-const port = 3000
+const metricsApp = express();
+
+// Add the options to the prometheus middleware most option are for http_request_duration_seconds histogram metric
+const metricsMiddleware = promBundle({
+    autoregister: false,
+    includeMethod: true,
+    includePath: true,
+    includeStatusCode: true,
+    includeUp: true,
+    customLabels: {project_name: 'hello_world', project_type: 'test_metrics_labels'},
+    promClient: {
+        collectDefaultMetrics: {
+        }
+      }
+});
+app.use(metricsMiddleware)
+metricsApp.use(metricsMiddleware.metricsMiddleware);
 
 
 let annotations = {}
@@ -47,7 +68,10 @@ app.get('/', (req, res) => {
 })
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
+    console.log(\`Example app listening on port ${port}\`)
 })
+metricsApp.listen(metricsPort, () => {
+    console.log(\`metrics listening on port ${metricsPort}\`)
+});
 EOF
 CMD ["node", "/app/server.js"]
