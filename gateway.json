@@ -1,0 +1,93 @@
+{
+  "apiVersion": "gateway.networking.k8s.io/v1",
+  "kind": "GatewayClass",
+  "metadata": {
+    "name": "app-gwc",
+    "namespace": "app-prod",
+    "annotations": {
+      "konghq.com/gatewayclass-unmanaged": "true",
+      "prometheus.io/scrape": "true"
+    }
+  },
+  "spec": {
+    "controllerName": "konghq.com/kic-gateway-controller"
+  }
+}
+{
+  "apiVersion": "gateway.networking.k8s.io/v1",
+  "kind": "Gateway",
+  "metadata": {
+    "name": "app-gw",
+    "namespace": "app-prod"
+  },
+  "spec": {
+    "gatewayClassName": "app-gwc",
+    "listeners": [
+      {
+        "name": "http",
+        "protocol": "HTTP",
+        "port": 80,
+        "allowedRoutes": {
+          "namespaces": {
+            "from": "All"
+          }
+        }
+      }
+    ]
+  }
+}
+{
+  "apiVersion": "gateway.networking.k8s.io/v1",
+  "kind": "HTTPRoute",
+  "metadata": {
+    "name": "app-httproute",
+    "namespace": "app-prod",
+    "annotations": {
+      "konghq.com/strip-path": "true"
+    }
+  },
+  "spec": {
+    "parentRefs": [
+      {
+        "name": "app-gw"
+      }
+    ],
+    "rules": [
+      {
+        "matches": [
+          {
+            "path": {
+              "type": "PathPrefix",
+              "value": "/gw"
+            }
+          }
+        ],
+        "filters": [
+          {
+            "type": "RequestHeaderModifier",
+            "requestHeaderModifier": {
+              "add": [
+                {
+                  "name": "gateway-api",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        ],
+        "backendRefs": [
+          {
+            "name": "svc-green",
+            "port": 3000,
+            "weight": 50
+          },
+          {
+            "name": "svc-blue",
+            "port": 3000,
+            "weight": 50
+          }
+        ]
+      }
+    ]
+  }
+}

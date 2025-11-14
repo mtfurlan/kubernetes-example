@@ -1,0 +1,34 @@
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "Ingress",
+  "metadata": {
+    "name": "app-ingress",
+    "namespace": "app-prod",
+    "annotations": {
+      "konghq.com/strip-path": "true"
+    }
+  },
+  "spec": {
+    "ingressClassName": "kong",
+    "rules": [
+      {
+        "http": {
+          "paths": [
+            {
+              "path": "/ingress",
+              "pathType": "ImplementationSpecific",
+              "backend": {
+                "service": {
+                  "name": "svc-blue",
+                  "port": {
+                    "number": 3000
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
