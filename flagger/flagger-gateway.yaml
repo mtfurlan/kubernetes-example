@@ -1,0 +1,76 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: app-gwc
+  namespace: test
+  annotations:
+    konghq.com/gatewayclass-unmanaged: 'true'
+spec:
+  controllerName: konghq.com/kic-gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: app-gw
+  namespace: test
+spec:
+  gatewayClassName: app-gwc
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app-httproute
+  namespace: test
+  annotations:
+    konghq.com/strip-path: 'true'
+spec:
+  parentRefs:
+    - name: app-gw
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gw
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add:
+              - name: gateway-api
+                value: 'true'
+      backendRefs:
+        - name: app-deployment-primary
+          port: 3000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gwc
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add:
+              - name: gateway-api
+                value: 'true'
+      backendRefs:
+        - name: app-deployment-canary
+          port: 3000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gwc/metrics
+      backendRefs:
+        - name: app-deployment-canary
+          port: 9797
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gw/metrics
+      backendRefs:
+        - name: app-deployment-primary
+          port: 9797

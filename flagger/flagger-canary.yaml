@@ -1,0 +1,76 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: app-canary
+  namespace: test
+spec:
+  provider: kubernetes
+  # deployment reference
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: app-deployment
+  # the maximum time in seconds for the canary deployment
+  # to make progress before rollback (default 600s)
+  progressDeadlineSeconds: 60
+  # HPA reference (optional)
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: app-hpa
+  service:
+    port: 3000
+    portDiscovery: true
+  analysis:
+    # schedule interval (default 60s)
+    interval: 30s
+    # max number of failed checks before rollback
+    threshold: 2
+    # number of checks to run before rollback
+    iterations: 10
+    # Prometheus checks based on 
+    # http_request_duration_seconds histogram
+    metrics:
+      - name: request-success-rate
+        # minimum req success rate (non 5xx responses)
+        # percentage (0-100)
+        thresholdRange:
+          min: 99
+        interval: 1m
+      - name: request-duration
+        # maximum req duration P99
+        # milliseconds
+        thresholdRange:
+          max: 500
+        interval: 1m
+    # acceptance/load testing hooks
+    webhooks:
+      - name: debugPre
+        type: pre-rollout
+        url: http://10.42.0.169:8080
+        metadata:
+          state: "pre-rollout"
+      - name: debug
+        type: rollout
+        url: http://10.42.0.169:8080
+        metadata:
+          state: "rollout"
+      - name: debugpost
+        type: post-rollout
+        url: http://10.42.0.169:8080
+        metadata:
+          state: "post-rollout"
+      - name: load-test-pre
+        type: pre-rollout
+        url: http://flagger-loadtester.test/
+        timeout: 5s
+        metadata:
+          type: cmd
+          cmd: "hey -z 10s -q 10 -c 2 http://app-deployment-canary.test:3000/"
+      - name: load-test
+        type: rollout
+        url: http://flagger-loadtester.test/
+        timeout: 5s
+        metadata:
+          type: cmd
+          cmd: "hey -z 10s -q 10 -c 2 http://app-deployment-canary.test:3000/"
