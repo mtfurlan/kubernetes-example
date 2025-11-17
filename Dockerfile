@@ -28,8 +28,10 @@ const metricsMiddleware = promBundle({
     promClient: {
         collectDefaultMetrics: {
         }
-      }
+    }
 });
+
+
 app.use(metricsMiddleware)
 metricsApp.use(metricsMiddleware.metricsMiddleware);
 
@@ -64,14 +66,20 @@ app.get('/', (req, res) => {
         annotations,
     };
 
+    console.log(new Date().toISOString());
+    //if(Math.random() >= 0.5) {
+    //    res.status(500);
+    //} else {
+        res.status(200);
+    //}
     res.send(response)
 })
 
 app.listen(port, () => {
-    console.log(\`Example app listening on port ${port}\`)
+    console.log("Example app listening on port " + port);
 })
 metricsApp.listen(metricsPort, () => {
-    console.log(\`metrics listening on port ${metricsPort}\`)
+    console.log("metrics listening on port " + metricsPort);
 });
 EOF
 CMD ["node", "/app/server.js"]

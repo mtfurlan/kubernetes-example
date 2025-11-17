@@ -5,7 +5,6 @@ metadata:
   namespace: app-prod
   annotations:
     konghq.com/gatewayclass-unmanaged: 'true'
-    prometheus.io/scrape: 'true'
 spec:
   controllerName: konghq.com/kic-gateway-controller
 ---
@@ -52,3 +51,29 @@ spec:
         - name: svc-blue
           port: 3000
           weight: 50
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gw-green
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add:
+              - name: gateway-api
+                value: 'true'
+      backendRefs:
+        - name: svc-green
+          port: 3000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gw-blue
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            add:
+              - name: gateway-api
+                value: 'true'
+      backendRefs:
+        - name: svc-blue
+          port: 3000
