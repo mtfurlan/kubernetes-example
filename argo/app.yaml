@@ -45,21 +45,22 @@ spec:
   metrics:
   - name: success-rate
     interval: 1m
-    successCondition: result[0] > 0.90
+    successCondition: result > 0.90
     provider:
       prometheus:
-        address: http://deployment.apps/promethius-prometheus-server:9090
+        address: http://promethius-prometheus-server.monitoring.svc.cluster.local:9090
+        # TODO: this isn't working, I'm not sure why yet
         query: >+
-          sum(
+          count(
               rate(
                   http_request_duration_seconds_count{
-                      rollouts_pod_template_hash="{{ args.rollout-hash }}"
-                      status!~"5.*"
+                      rollouts_pod_template_hash="{{ args.rollout-hash }}",
+                      status_code!~"5.*"
                   }[1m]
               )
           )
           /
-          sum(
+          count(
               rate(
                   http_request_duration_seconds_count{
                       rollouts_pod_template_hash="{{ args.rollout-hash }}"
@@ -93,7 +94,6 @@ spec:
       analysis:
         templates:
           - templateName: success-rate
-        startingStep: 2 # delay starting analysis run until setWeight: 40%
         args:
         - name: rollout-hash
           valueFrom:
@@ -119,14 +119,14 @@ spec:
       labels:
         app: rollouts-demo
       annotations:
-        deployment_slot: 'foo'
+        deployment_slot: 'new'
         prometheus.io/scrape: "true"
         prometheus.io/port: "9797"
     spec:
       containers:
         - name: app
           imagePullPolicy: IfNotPresent
-          image: example-docker-image:v7
+          image: example-docker-image:v9
           ports:
             - name: http
               containerPort: 3000
