@@ -1,0 +1,170 @@
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1beta1
+metadata:
+  name: argo-rollouts-http-route
+  namespace: argo-example
+spec:
+  parentRefs:
+    - name: gw
+      namespace: default
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: argo-rollouts-stable-service
+      kind: Service
+      port: 80
+    - name: argo-rollouts-canary-service
+      kind: Service
+      port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-rollouts-stable-service
+  namespace: argo-example
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: rollouts-demo
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: argo-example
+spec:
+  args:
+  - name: rollout-hash
+  metrics:
+  - name: success-rate
+    interval: 1m
+    successCondition: result[0] > 0.90
+    provider:
+      prometheus:
+        address: http://deployment.apps/promethius-prometheus-server:9090
+        query: >+
+          sum(
+              rate(
+                  http_request_duration_seconds_count{
+                      rollouts_pod_template_hash="{{ args.rollout-hash }}"
+                      status!~"5.*"
+                  }[1m]
+              )
+          )
+          /
+          sum(
+              rate(
+                  http_request_duration_seconds_count{
+                      rollouts_pod_template_hash="{{ args.rollout-hash }}"
+                  }[1m]
+              )
+          )
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-rollouts-canary-service
+  namespace: argo-example
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: rollouts-demo
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: rollouts-demo
+  namespace: argo-example
+spec:
+  replicas: 10
+  strategy:
+    canary:
+      analysis:
+        templates:
+          - templateName: success-rate
+        startingStep: 2 # delay starting analysis run until setWeight: 40%
+        args:
+        - name: rollout-hash
+          valueFrom:
+              podTemplateHashValue: Latest
+      canaryService: argo-rollouts-canary-service # our created canary service
+      stableService: argo-rollouts-stable-service # our created stable service
+      trafficRouting:
+        plugins:
+          argoproj-labs/gatewayAPI:
+            httpRoute: argo-rollouts-http-route # our created httproute
+            namespace: argo-example
+      steps:
+      - setWeight: 50
+      - pause: {}
+      - setWeight: 100
+      - pause: {}
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: rollouts-demo
+  template:
+    metadata:
+      labels:
+        app: rollouts-demo
+      annotations:
+        deployment_slot: 'foo'
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9797"
+    spec:
+      containers:
+        - name: app
+          imagePullPolicy: IfNotPresent
+          image: example-docker-image:v7
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: http-metrics
+              containerPort: 9797
+              protocol: TCP
+          volumeMounts:
+            - name: podinfo
+              mountPath: /etc/podinfo
+          env:
+            - name: PORT
+              value: "3000"
+            - name: METRICS_PORT
+              value: "9797"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+      volumes:
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: labels
+                fieldRef:
+                  fieldPath: metadata.labels
+              - path: annotations
+                fieldRef:
+                  fieldPath: metadata.annotations

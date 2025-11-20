@@ -42,6 +42,8 @@ curl $host/ingress
 ```
 
 ### flagger and flagger-example
+right now this is a strict blue/green deployment, canary looks possible though
+
 * deployment(app-deployment) with 0 replicas
 * Flagger Canary that points to the deployment
   * this will create another deployment (app-deployment-primary) with replicas
@@ -101,10 +103,19 @@ traffic routing plugins are alpha, and the gateway api is a plugin unlike things
 * http route pointing at those two services
 * Argo Rollout pointing at the http route and two services, configured like a deployment cause it has stuff like replicas, rollout strategy, image
 
+change image, argo will put pods in the canary service and run your rollout steps
+When rollout is finished, it tears down the pods in the old replica set and leaves the new pods from the canary
+
+
 has rollout pause/abort/retry
 
 analysis: https://argo-rollouts.readthedocs.io/en/stable/features/analysis/
 ```
+# promethius
+helm install promethius --namespace monitoring --create-namespace oci://ghcr.io/prometheus-community/charts/prometheus
+# helm uninstall -n monitoring promethius
+
+
 # install argo
 kubectl create namespace argo-rollouts
 kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
@@ -113,7 +124,32 @@ kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/rele
 curl -o ~/.local/bin/kubectl-argo-rollouts https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
 chmod +x ~/.local/bin/kubectl-argo-rollouts
 
-# TODO https://argo-rollouts.readthedocs.io/en/stable/installation/#shell-auto-completion
+# apply cluster config
+kubectl apply -f argo/argo.yaml
+
+# run demo
+kubectl apply -f argo/example/gateway-api.yaml
+
+# watch rollout
+kubectl argo rollouts get -n argo-example rollout rollouts-demo --watch
+
+# logs
+kubectl logs -n argo-rollouts deployment.apps/argo-rollouts -f
+
+#open $host in browser to view demo
+
+# change image colour in argo rollout deployment config argoproj/rollouts-demo:(red, orange, yellow, green, blue, purple, but also bad-$colour and slow-$colour)
+# re-apply
+kubectl apply -f argo/example/gateway-api.yaml
+
+# see how half the colour changes
+
+# promote see how it finishes moving all trafifc over
+kubectl argo rollouts -n argo-example promote rollouts-demo
+
+# promote again, see how it finishes deployment
+kubectl argo rollouts -n argo-example promote rollouts-demo
+
 
 
 # uninstall
