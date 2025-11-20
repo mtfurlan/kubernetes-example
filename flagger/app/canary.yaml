@@ -14,10 +14,10 @@ spec:
   # to make progress before rollback (default 600s)
   progressDeadlineSeconds: 60
   # HPA reference (optional)
-  autoscalerRef:
-    apiVersion: autoscaling/v2
-    kind: HorizontalPodAutoscaler
-    name: app-hpa
+  #autoscalerRef:
+  #  apiVersion: autoscaling/v2
+  #  kind: HorizontalPodAutoscaler
+  #  name: app-hpa
   service:
     port: 3000
     portDiscovery: true
@@ -28,8 +28,7 @@ spec:
     threshold: 2
     # number of checks to run before rollback
     iterations: 10
-    # Prometheus checks based on 
-    # http_request_duration_seconds histogram
+    # Prometheus checks based on http_request_duration_seconds histogram
     metrics:
       - name: request-success-rate
         # minimum req success rate (non 5xx responses)
@@ -45,21 +44,9 @@ spec:
         interval: 1m
     # acceptance/load testing hooks
     webhooks:
-      - name: debugPre
-        type: pre-rollout
-        url: http://10.42.0.169:8080
-        metadata:
-          state: "pre-rollout"
-      - name: debug
-        type: rollout
-        url: http://10.42.0.169:8080
-        metadata:
-          state: "rollout"
-      - name: debugpost
-        type: post-rollout
-        url: http://10.42.0.169:8080
-        metadata:
-          state: "post-rollout"
+        # rollout webhook triggers at teh same time the metrics checks happen,
+        # so if your metrics depend on load, you must *also* generate load in
+        # pre-rollout
       - name: load-test-pre
         type: pre-rollout
         url: http://flagger-loadtester.test/

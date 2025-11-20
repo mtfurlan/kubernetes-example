@@ -5,6 +5,7 @@ metadata:
   namespace: test
 spec:
   replicas: 0
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: app
@@ -13,7 +14,7 @@ spec:
       labels:
         app: app
       annotations:
-        deployment_slot: 'asdf'
+        deployment_slot: 'newerst'
         prometheus.io/scrape: "true"
         prometheus.io/port: "9797"
     spec:
@@ -62,25 +63,3 @@ spec:
               - path: annotations
                 fieldRef:
                   fieldPath: metadata.annotations
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: app-hpa
-  namespace: test
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: app-deployment
-  minReplicas: 1
-  maxReplicas: 4
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          # scale up if usage is above
-          # 99% of the requested CPU (100m)
-          averageUtilization: 99
