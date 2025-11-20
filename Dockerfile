@@ -49,7 +49,8 @@ try {
     console.error(err);
 }
 
-app.get('/', (req, res) => {
+
+const handleRequest = (fail, req, res) => {
     const node_name = process.env.NODE_NAME;
     const pod_name = process.env.POD_NAME;
     const pod_namespace = process.env.POD_NAMESPACE;
@@ -58,6 +59,7 @@ app.get('/', (req, res) => {
     const headers = req.headers;
 
     const response = {
+        fail,
         node_name,
         pod_name,
         pod_namespace,
@@ -67,12 +69,18 @@ app.get('/', (req, res) => {
     };
 
     console.log(new Date().toISOString());
-    //if(Math.random() >= 0.5) {
-    //    res.status(500);
-    //} else {
+    if(fail) {
+        res.status(500);
+    } else {
         res.status(200);
-    //}
+    }
     res.send(response)
+};
+app.get('/', (req, res) => {
+    return handleRequest(false, req, res);
+})
+app.get('/500', (req, res) => {
+    return handleRequest(true, req, res);
 })
 
 app.listen(port, () => {
