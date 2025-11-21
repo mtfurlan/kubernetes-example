@@ -21,6 +21,12 @@ version=v3; docker build -t example-docker-image:$version . && docker save examp
 # create global kong gateway
 # could also be done in a per-namespace way, I tried both
 kubectl apply -f gateway.yaml
+
+
+
+# promethius
+helm install promethius --set server.global.scrape_interval=10s --namespace monitoring --create-namespace oci://ghcr.io/prometheus-community/charts/prometheus
+# helm uninstall -n monitoring promethius
 ```
 
 ## different approaches
@@ -60,17 +66,34 @@ Flagger has webhooks that can be used to gate the canary deployment, based on wh
 
 Flagger has webhooks it uses in it's examples to generate load for the analyiss, but they seem to be poorly timed (the rollout hook fires at the same time the check for metrics happens, so unelss you apply load at the pre-rollout as well as rollout, it will complain about a lack of metrics)
 
-flagger cannot retry (FAQ says to just edit an annotation and reapply the deployment) or pause/abort a deployment unlike argo rollouts
+flagger cannot abort/pause a deployment, and retry is done by editing an annotation and reapply the deployment
+It does have the following webhooks: configm-rollout, confim-traffic-increase, confirm-promotion, and rollback, which can be used to do pause/abort type stuff, you just have to have the infrastructure around it
+
+there are a few cases where I've seeen flagger will lose the canary pod:
+* restart a failed deployment before prior canary fully torn down(there is no log message when finished, just when starting scaling it down)
+* restart a deployment during the deployment
+
+has a builtin request-success-rate metric that doesn't work with https://github.com/siimon/prom-client though I'm not sure why
+
+slightly nicer logs for when metrics fail (`Halt app-canary.test advancement success rate 85.17 < 99`)
+metrics more fiddly in some ways, less fiddly in others
 ```
 helm upgrade -i flagger flagger/flagger \
 --namespace flagger \
 --create-namespace \
---set prometheus.install=true \
+--set prometheus.install=false \
+--set metricsServer=http://promethius-prometheus-server.monitoring.svc.cluster.local \
 --set meshProvider=kubernetes
 
+# prometheus 2.41.0
+#helm upgrade -i flagger flagger/flagger \
+#--namespace flagger \
+#--create-namespace \
+#--set prometheus.install=true \
+#--set meshProvider=kubernetes
 
-kubectl create ns test
-helm upgrade -i flagger-loadtester flagger/loadtester --namespace=test
+
+helm upgrade -i flagger-loadtester flagger/loadtester --namespace=test --create-namespace
 
 kubectl apply -f "flagger/app/*.yaml"
 
@@ -86,11 +109,9 @@ kubectl -n test describe canary/app-canary
 
 
 # uninstall
-kubectl delete -f "flagger/app/*.yaml"
 helm uninstall -n flagger flagger
-kubectl -n test delete service/flagger-loadtester
-kubectl -n test delete deployment.apps/flagger-loadtester
-kubectl delete namespace test
+kubectl delete ns test
+kubectl delete ns flagger
 ```
 
 `flagger/example` is the [flagger Blue/Green](https://docs.flagger.app/tutorials/kubernetes-blue-green) example
@@ -106,14 +127,14 @@ traffic routing plugins are alpha, and the gateway api is a plugin unlike things
 change image, argo will put pods in the canary service and run your rollout steps
 When rollout is finished, it tears down the pods in the old replica set and leaves the new pods from the canary
 
-
 has rollout pause/abort/retry
+if you abort and retry too fast just doesn't do anything, has a delay counter, default 30s
+
+you can look at the rollout object and easily see what revisions are deployed vs canary
 
 analysis: https://argo-rollouts.readthedocs.io/en/stable/features/analysis/
+exposes analysis runs during a rollout as kubernets objects you can describe and debug
 ```
-# promethius
-helm install promethius --namespace monitoring --create-namespace oci://ghcr.io/prometheus-community/charts/prometheus
-# helm uninstall -n monitoring promethius
 
 
 # install argo
@@ -153,6 +174,7 @@ kubectl argo rollouts -n argo-example promote rollouts-demo
 
 
 # uninstall
+kubectl delete ns argo-example
 kubectl delete -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl delete ns argo-rollouts
 ```
@@ -166,3 +188,17 @@ get all dns records:
 nameserver=$(kubectl -n kube-system get svc kube-dns -o json | jq -r '.spec.clusterIP')
 kubectl get -A svc -o json | jq -r '.items[] | .spec.clusterIP | select(. != "None")' | xargs -I{} nslookup "{}" "$nameserver"
 ```
+
+exec loadtesting thing
+```
+loadTest() { namespace=${1:?must provide namespace}; shift; kubectl exec -n $namespace -it $(kubectl get -n $namespace pods --output json | jq -r '.items[] | .metadata.name' | grep "loadtester") -- "$@"; }
+loadTest test hey -z 1h -q 10 -c 2 http://10.42.0.122/
+```
+
+## TODO
+* test rollback for both
+* argo webhooks to do laod test automagically
+
+## presentation notes
+* side by side comparison
+* show rollback

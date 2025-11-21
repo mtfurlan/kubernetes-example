@@ -44,29 +44,14 @@ spec:
   - name: rollout-hash
   metrics:
   - name: success-rate
-    interval: 1m
-    successCondition: result > 0.90
+    interval: 10s
+    failureLimit: 2
+    successCondition: len(result) != 0 && result[0] > 90
     provider:
       prometheus:
-        address: http://promethius-prometheus-server.monitoring.svc.cluster.local:9090
-        # TODO: this isn't working, I'm not sure why yet
+        address: http://promethius-prometheus-server.monitoring.svc.cluster.local
         query: >+
-          count(
-              rate(
-                  http_request_duration_seconds_count{
-                      rollouts_pod_template_hash="{{ args.rollout-hash }}",
-                      status_code!~"5.*"
-                  }[1m]
-              )
-          )
-          /
-          count(
-              rate(
-                  http_request_duration_seconds_count{
-                      rollouts_pod_template_hash="{{ args.rollout-hash }}"
-                  }[1m]
-              )
-          )
+            avg(avg_over_time(request_success_rate{rollouts_pod_template_hash="{{ args.rollout-hash }}"}[10s]))
 ---
 apiVersion: v1
 kind: Service
@@ -106,10 +91,9 @@ spec:
             httpRoute: argo-rollouts-http-route # our created httproute
             namespace: argo-example
       steps:
-      - setWeight: 50
-      - pause: {}
       - setWeight: 100
-      - pause: {}
+      # MUST have analysis window
+      - pause: {duration: 30s}
   revisionHistoryLimit: 2
   selector:
     matchLabels:
@@ -119,14 +103,14 @@ spec:
       labels:
         app: rollouts-demo
       annotations:
-        deployment_slot: 'new'
+        deployment_slot: 'newer7'
         prometheus.io/scrape: "true"
         prometheus.io/port: "9797"
     spec:
       containers:
         - name: app
           imagePullPolicy: IfNotPresent
-          image: example-docker-image:v9
+          image: example-docker-image:v10
           ports:
             - name: http
               containerPort: 3000

@@ -5,11 +5,13 @@ EXPOSE 3000
 WORKDIR /app
 RUN npm i express
 RUN npm i prom-client express-prom-bundle
+RUN npm i on-finished
 
 RUN cat <<EOF >> /app/server.js
 const fs = require('node:fs');
 const express = require('express')
 const promBundle = require("express-prom-bundle");
+var onFinished = require('on-finished')
 
 const port = process.env.PORT | 3000;
 const metricsPort = process.env.METRICS_PORT | 9797;
@@ -31,6 +33,37 @@ const metricsMiddleware = promBundle({
     }
 });
 
+// define custom success rate metric
+const promClient = promBundle.promClient;
+new promClient.Gauge({
+  name: 'request_success_rate',
+  help: 'metric_help',
+  collect() {
+    if(success+failure == 0) {
+        this.set(100);
+    } else {
+        this.set(success/(success+failure)*100);
+    }
+  },
+});
+new promClient.Gauge({
+  name: 'requests',
+  help: 'metric_help',
+  collect() {
+    this.set(success+failure);
+  },
+});
+
+let success = 0;
+let failure = 0;
+// define function to look at all responses
+const doMetrics = (statusCode) => {
+    if(200 <= statusCode && statusCode < 300) {
+        ++success;
+    } else {
+        ++failure;
+    }
+};
 
 app.use(metricsMiddleware)
 metricsApp.use(metricsMiddleware.metricsMiddleware);
@@ -51,6 +84,9 @@ try {
 
 
 const handleRequest = (fail, req, res) => {
+    onFinished(res, (err, res) => {
+        doMetrics(res.statusCode);
+    });
     const node_name = process.env.NODE_NAME;
     const pod_name = process.env.POD_NAME;
     const pod_namespace = process.env.POD_NAMESPACE;

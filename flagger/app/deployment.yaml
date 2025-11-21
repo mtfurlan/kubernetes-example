@@ -14,14 +14,14 @@ spec:
       labels:
         app: app
       annotations:
-        deployment_slot: 'newerst'
+        deployment_slot: 'newer15'
         prometheus.io/scrape: "true"
         prometheus.io/port: "9797"
     spec:
       containers:
         - name: app
           imagePullPolicy: IfNotPresent
-          image: example-docker-image:v7
+          image: example-docker-image:v10
           ports:
             - name: http
               containerPort: 3000
