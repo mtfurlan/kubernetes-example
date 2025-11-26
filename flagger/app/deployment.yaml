@@ -14,7 +14,7 @@ spec:
       labels:
         app: app
       annotations:
-        deployment_slot: 'newer15'
+        deployment_slot: 'newer18'
         prometheus.io/scrape: "true"
         prometheus.io/port: "9797"
     spec:

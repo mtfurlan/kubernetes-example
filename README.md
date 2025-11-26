@@ -27,6 +27,11 @@ kubectl apply -f gateway.yaml
 # promethius
 helm install promethius --set server.global.scrape_interval=10s --namespace monitoring --create-namespace oci://ghcr.io/prometheus-community/charts/prometheus
 # helm uninstall -n monitoring promethius
+
+
+
+# load tester
+helm upgrade -i flagger-loadtester flagger/loadtester
 ```
 
 ## different approaches
@@ -93,7 +98,6 @@ helm upgrade -i flagger flagger/flagger \
 #--set meshProvider=kubernetes
 
 
-helm upgrade -i flagger-loadtester flagger/loadtester --namespace=test --create-namespace
 
 kubectl apply -f "flagger/app/*.yaml"
 
@@ -145,31 +149,20 @@ kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/rele
 curl -o ~/.local/bin/kubectl-argo-rollouts https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
 chmod +x ~/.local/bin/kubectl-argo-rollouts
 
-# apply cluster config
+# apply cluster config, including gateway api plugin
 kubectl apply -f argo/argo.yaml
 
+# restart argo rollout to get plugin
+kubectl rollout restart deployment -n argo-rollouts argo-rollouts
+
 # run demo
-kubectl apply -f argo/example/gateway-api.yaml
+kubectl apply -f argo/app.yaml
 
 # watch rollout
 kubectl argo rollouts get -n argo-example rollout rollouts-demo --watch
 
 # logs
 kubectl logs -n argo-rollouts deployment.apps/argo-rollouts -f
-
-#open $host in browser to view demo
-
-# change image colour in argo rollout deployment config argoproj/rollouts-demo:(red, orange, yellow, green, blue, purple, but also bad-$colour and slow-$colour)
-# re-apply
-kubectl apply -f argo/example/gateway-api.yaml
-
-# see how half the colour changes
-
-# promote see how it finishes moving all trafifc over
-kubectl argo rollouts -n argo-example promote rollouts-demo
-
-# promote again, see how it finishes deployment
-kubectl argo rollouts -n argo-example promote rollouts-demo
 
 
 

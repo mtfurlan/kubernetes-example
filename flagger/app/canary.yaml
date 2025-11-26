@@ -59,14 +59,14 @@ spec:
         # pre-rollout
       - name: load-test-pre
         type: pre-rollout
-        url: http://flagger-loadtester.test/
+        url: http://flagger-loadtester.default/
         timeout: 5s
         metadata:
           type: cmd
           cmd: "hey -z 10s -q 10 -c 2 http://app-deployment-canary.test:3000/"
       - name: load-test
         type: rollout
-        url: http://flagger-loadtester.test/
+        url: http://flagger-loadtester.default/
         timeout: 5s
         metadata:
           type: cmd
